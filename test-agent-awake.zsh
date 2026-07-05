@@ -146,6 +146,16 @@ history_file_count=$(/usr/bin/find "${ROTATION_ROOT}/base" -maxdepth 1 -name 'hi
   print -u2 "history rotation did not keep exactly five files"
   exit 1
 }
+AGENT_AWAKE_DRY_RUN=1 \
+AGENT_AWAKE_HISTORY_FILE_BYTES=600 \
+AGENT_AWAKE_HISTORY_ARCHIVES=4 \
+AGENT_AWAKE_STATE_DIR="${ROTATION_ROOT}/state" \
+AGENT_AWAKE_BASE_DIR="${ROTATION_ROOT}/base" \
+"${BINARY}" history --limit 10000 --json > "${ROTATION_ROOT}/history-output.jsonl"
+"${JQ}" -s -e '
+  length > 1
+  and ([.[].sequence] == ([.[].sequence] | sort))
+' "${ROTATION_ROOT}/history-output.jsonl" >/dev/null
 
 readonly CAP_ROOT="${TEST_ROOT}/cap"
 /bin/mkdir -p "${CAP_ROOT}/state" "${CAP_ROOT}/base"
@@ -224,6 +234,39 @@ assert_history '
   any(.[]; .type == "lease_removed" and .source == "cursor" and .reason == "expired")
   and any(.[]; .type == "amphetamine_stopped" and .result == "stopped")
 '
+
+history_size_before=$(/usr/bin/stat -f '%z' "${HISTORY_FILE}")
+AGENT_AWAKE_DRY_RUN=1 \
+AGENT_AWAKE_STATE_DIR="${STATE_DIR}" \
+AGENT_AWAKE_BASE_DIR="${BASE_DIR}" \
+"${BINARY}" history --limit 5 --json > "${TEST_ROOT}/history-last-five.jsonl"
+"${JQ}" -s -e '
+  length == 5
+  and ([.[].sequence] == ([.[].sequence] | sort))
+' "${TEST_ROOT}/history-last-five.jsonl" >/dev/null
+AGENT_AWAKE_DRY_RUN=1 \
+AGENT_AWAKE_STATE_DIR="${STATE_DIR}" \
+AGENT_AWAKE_BASE_DIR="${BASE_DIR}" \
+"${BINARY}" history --source claude --limit 10000 --json > "${TEST_ROOT}/history-claude.jsonl"
+"${JQ}" -s -e 'length > 0 and all(.[]; .source == "claude")' \
+  "${TEST_ROOT}/history-claude.jsonl" >/dev/null
+AGENT_AWAKE_DRY_RUN=1 \
+AGENT_AWAKE_STATE_DIR="${STATE_DIR}" \
+AGENT_AWAKE_BASE_DIR="${BASE_DIR}" \
+"${BINARY}" history --limit 3 > "${TEST_ROOT}/history-human.txt"
+/usr/bin/grep -qE '^1970-.* #[0-9]+ ' "${TEST_ROOT}/history-human.txt"
+if AGENT_AWAKE_DRY_RUN=1 \
+  AGENT_AWAKE_STATE_DIR="${STATE_DIR}" \
+  AGENT_AWAKE_BASE_DIR="${BASE_DIR}" \
+  "${BINARY}" history --limit 0 > /dev/null 2>&1; then
+  print -u2 "history accepted an invalid limit"
+  exit 1
+fi
+history_size_after=$(/usr/bin/stat -f '%z' "${HISTORY_FILE}")
+[[ "${history_size_before}" == "${history_size_after}" ]] || {
+  print -u2 "history reads wrote new history records"
+  exit 1
+}
 
 "${BINARY}" __self-test-large-process-output > "${TEST_ROOT}/large-output-status.json" &
 process_test_pid=$!

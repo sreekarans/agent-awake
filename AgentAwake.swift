@@ -196,6 +196,11 @@ private struct HistoryEvent: Codable {
     }
 }
 
+private struct HistoryOutputRecord {
+    var raw: String
+    var values: [String: Any]
+}
+
 private struct ProcessRecord: Codable {
     var pid: Int32
     var parentPID: Int32
@@ -241,6 +246,7 @@ private enum Source: String {
 
 private enum ControllerError: Error, CustomStringConvertible {
     case invalidArguments
+    case invalidHistoryArguments(String)
     case invalidPayload(String)
     case missingIdentity(String)
     case processFailed(String)
@@ -249,6 +255,8 @@ private enum ControllerError: Error, CustomStringConvertible {
         switch self {
         case .invalidArguments:
             return "invalid arguments"
+        case let .invalidHistoryArguments(message):
+            return message
         case let .invalidPayload(message):
             return message
         case let .missingIdentity(source):
@@ -625,6 +633,132 @@ private final class Controller {
             let message = "{\"error\":\"status unavailable\"}\n"
             FileHandle.standardOutput.write(Data(message.utf8))
         }
+    }
+
+    func printHistory(arguments: [String]) throws {
+        var limit = 100
+        var source: Source?
+        var useJSON = false
+        var index = 0
+
+        while index < arguments.count {
+            switch arguments[index] {
+            case "--json":
+                useJSON = true
+                index += 1
+            case "--limit":
+                guard index + 1 < arguments.count,
+                      let value = Int(arguments[index + 1]),
+                      (1...10_000).contains(value)
+                else {
+                    throw ControllerError.invalidHistoryArguments(
+                        "--limit must be an integer from 1 through 10000"
+                    )
+                }
+                limit = value
+                index += 2
+            case "--source":
+                guard index + 1 < arguments.count,
+                      let value = Source(rawValue: arguments[index + 1])
+                else {
+                    throw ControllerError.invalidHistoryArguments(
+                        "--source must be codex, cursor, or claude"
+                    )
+                }
+                source = value
+                index += 2
+            default:
+                throw ControllerError.invalidHistoryArguments(
+                    "unknown history option: \(arguments[index])"
+                )
+            }
+        }
+
+        try withReadOnlyState { _ in
+            let records = try loadHistoryRecords(source: source)
+            for record in records.suffix(limit) {
+                if useJSON {
+                    FileHandle.standardOutput.write(Data(record.raw.utf8))
+                    FileHandle.standardOutput.write(Data([0x0A]))
+                } else {
+                    let line = formatHistoryRecord(record.values)
+                    FileHandle.standardOutput.write(Data(line.utf8))
+                    FileHandle.standardOutput.write(Data([0x0A]))
+                }
+            }
+        }
+    }
+
+    private func loadHistoryRecords(source: Source?) throws -> [HistoryOutputRecord] {
+        var files: [URL] = []
+        for index in stride(from: historyArchives, through: 1, by: -1) {
+            let archive = historyArchive(index)
+            if fileManager.fileExists(atPath: archive.path) {
+                files.append(archive)
+            }
+        }
+        if fileManager.fileExists(atPath: historyFile.path) {
+            files.append(historyFile)
+        }
+
+        var records: [HistoryOutputRecord] = []
+        for file in files {
+            let data = try Data(contentsOf: file)
+            guard let contents = String(data: data, encoding: .utf8) else {
+                continue
+            }
+            for line in contents.split(separator: "\n", omittingEmptySubsequences: true) {
+                let raw = String(line)
+                guard let lineData = raw.data(using: .utf8),
+                      let object = try? JSONSerialization.jsonObject(with: lineData),
+                      let values = object as? [String: Any]
+                else {
+                    continue
+                }
+                if let source,
+                   values["source"] as? String != source.rawValue {
+                    continue
+                }
+                records.append(HistoryOutputRecord(raw: raw, values: values))
+            }
+        }
+        return records.sorted {
+            let left = $0.values["sequence"] as? Int ?? 0
+            let right = $1.values["sequence"] as? Int ?? 0
+            return left < right
+        }
+    }
+
+    private func formatHistoryRecord(_ values: [String: Any]) -> String {
+        var fields: [String] = []
+        fields.append(values["timestamp"] as? String ?? "unknown-time")
+        if let sequence = values["sequence"] as? Int {
+            fields.append("#\(sequence)")
+        }
+        fields.append(values["type"] as? String ?? "unknown-event")
+        if let source = values["source"] as? String {
+            fields.append("source=\(source)")
+        }
+        if let action = values["action"] as? String {
+            fields.append("action=\(action)")
+        }
+        if let before = values["leaseCountBefore"] as? Int,
+           let after = values["leaseCountAfter"] as? Int {
+            fields.append("leases=\(before)->\(after)")
+        }
+        if let count = values["heartbeatCount"] as? Int {
+            fields.append("heartbeats=\(count)")
+        }
+        if let result = values["result"] as? String {
+            fields.append("result=\(result)")
+        }
+        if let reason = values["reason"] as? String {
+            fields.append("reason=\(reason)")
+        }
+        if let error = values["error"] as? String {
+            fields.append("error=\(error.replacingOccurrences(of: " ", with: "_"))")
+        }
+        return fields.joined(separator: " ")
     }
 
     func selfTestLargeProcessOutput() {
@@ -1619,9 +1753,10 @@ private final class Controller {
 }
 
 private func main() {
+    let arguments = CommandLine.arguments
+    let command = arguments.count >= 2 ? arguments[1] : nil
     do {
         let controller = try Controller()
-        let arguments = CommandLine.arguments
         guard arguments.count >= 2 else {
             throw ControllerError.invalidArguments
         }
@@ -1641,14 +1776,21 @@ private func main() {
             controller.reconcileNow()
         case "status":
             controller.printStatus()
+        case "history":
+            try controller.printHistory(arguments: Array(arguments.dropFirst(2)))
         case "__self-test-large-process-output":
             controller.selfTestLargeProcessOutput()
         default:
             throw ControllerError.invalidArguments
         }
     } catch {
-        // Hook failures must fail open and must not emit protocol-breaking output.
-        exit(0)
+        if command == "hook" {
+            // Hook failures must fail open and must not emit protocol-breaking output.
+            exit(0)
+        }
+        let message = "agent-awake: \(error)\n"
+        FileHandle.standardError.write(Data(message.utf8))
+        exit(2)
     }
 }
 
