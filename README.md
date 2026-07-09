@@ -16,6 +16,8 @@ Each desktop app sends lifecycle events to one local controller:
 
 Leases also expire after eight hours and are removed when their owning desktop-app process exits. A LaunchAgent reconciles stale state every 30 seconds, so a crashed app or missed stop hook cannot keep the machine awake indefinitely.
 
+Every hook, reconcile pass, lease change, and Amphetamine decision is recorded as structured JSONL history. Repeated heartbeats are summarized so normal agent activity does not create unnecessary writes.
+
 ## Requirements
 
 - macOS
@@ -59,6 +61,50 @@ Start a local agent turn in one of the supported desktop apps. `leaseCount` shou
 
 To verify multi-app behavior, start turns in two apps and stop only one. Amphetamine must remain active until the second app's lease also ends.
 
+## Lease history
+
+Show the newest 100 records in a compact human-readable form:
+
+```zsh
+"$HOME/Library/Application Support/AgentAwake/agent-awake" history
+```
+
+Filter by source, change the record limit, or return the original JSONL records:
+
+```zsh
+"$HOME/Library/Application Support/AgentAwake/agent-awake" history --source codex --limit 250
+"$HOME/Library/Application Support/AgentAwake/agent-awake" history --limit 10000 --json
+```
+
+`--limit` accepts values from 1 through 10,000. The history command reads the active file and all retained archives. Status and history reads do not create history events.
+
+History is stored at:
+
+```text
+~/Library/Application Support/AgentAwake/history.jsonl
+```
+
+Each record can include its UTC time, sequence number, event type, source, hook action, hashed session and turn identifiers, hashed lease key, owner process metadata, lease counts, expiry changes, Amphetamine state, result, reason, and safe error text.
+
+The history never stores prompts, responses, tool arguments, raw hook payloads, environment variables, or process command text. The older plain-text log is used only if structured history cannot be written.
+
+### History limits
+
+- The first heartbeat is written immediately.
+- Repeated heartbeats for one lease are summarized every five minutes and when the lease ends.
+- Each history file rotates at 10 MB.
+- The active file and four archives retain about 50 MB in total.
+- History writes stop after 10 MB in one UTC hour and resume in the next hour.
+- All history files use mode `0600`.
+- History writes are best effort and never block an agent hook.
+
+Advanced users can override the defaults with:
+
+- `AGENT_AWAKE_HISTORY_FILE_BYTES`
+- `AGENT_AWAKE_HISTORY_ARCHIVES`
+- `AGENT_AWAKE_HISTORY_HOURLY_BYTES`
+- `AGENT_AWAKE_HEARTBEAT_SUMMARY_SECONDS`
+
 ## Build directly
 
 ```zsh
@@ -73,6 +119,7 @@ Build output is intentionally excluded from Git.
 - Hook failures fail open and never block the agent protocol.
 - Session identifiers are stored only as SHA-256 hashes.
 - State and logs use user-only filesystem permissions.
+- Structured history has rotation and hourly write limits.
 - Remote/background Cursor events are ignored.
 - Existing non-Agent-Awake hooks survive repeated installs.
 - A pre-existing or externally changed Amphetamine session is left alone.
