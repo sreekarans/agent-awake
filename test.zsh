@@ -14,5 +14,6 @@ trap cleanup EXIT
 "${SCRIPT_DIR}/build.zsh" "${BINARY}"
 "${SCRIPT_DIR}/test-agent-awake.zsh" "${BINARY}"
 "${SCRIPT_DIR}/test-config-merges.zsh"
+"${SCRIPT_DIR}/test-install-plist.zsh"
 
 print "all Agent Awake tests passed"

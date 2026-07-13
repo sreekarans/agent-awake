@@ -49,12 +49,11 @@ backup_if_present "${HOME_DIR}/.cursor/hooks.json"
 /bin/chmod 700 "${SUPPORT_DIR}/agent-awake.new"
 /bin/mv -f "${SUPPORT_DIR}/agent-awake.new" "${LIVE_BINARY}"
 
-/bin/cp "${SCRIPT_DIR}/com.sreekaran.agent-awake.plist" "${LIVE_PLIST}.new"
-/usr/bin/plutil -replace ProgramArguments.0 -string "${LIVE_BINARY}" "${LIVE_PLIST}.new"
-/usr/bin/plutil -replace StandardErrorPath -string "${HOME_DIR}/Library/Logs/AgentAwake.error.log" "${LIVE_PLIST}.new"
-/usr/bin/plutil -replace StandardOutPath -string "${HOME_DIR}/Library/Logs/AgentAwake.log" "${LIVE_PLIST}.new"
-/usr/bin/plutil -lint "${LIVE_PLIST}.new" >/dev/null
-/bin/chmod 600 "${LIVE_PLIST}.new"
+"${SCRIPT_DIR}/render-launch-agent.zsh" \
+  "${SCRIPT_DIR}/com.sreekaran.agent-awake.plist" \
+  "${LIVE_PLIST}.new" \
+  "${LIVE_BINARY}" \
+  "${HOME_DIR}/Library/Logs"
 /bin/mv -f "${LIVE_PLIST}.new" "${LIVE_PLIST}"
 
 merge_json() {
