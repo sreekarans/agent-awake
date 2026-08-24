@@ -15,6 +15,6 @@ trap cleanup EXIT
 /bin/mkdir -p "${OUTPUT_DIR}"
 CLANG_MODULE_CACHE_PATH="${MODULE_CACHE}" \
 SWIFT_MODULE_CACHE_PATH="${MODULE_CACHE}" \
-/usr/bin/xcrun swiftc -O "${SCRIPT_DIR}/AgentAwake.swift" -o "${OUTPUT}"
+/usr/bin/xcrun swiftc -O "${SCRIPT_DIR}"/Sources/AgentAwake/*.swift -o "${OUTPUT}"
 
 print "Built ${OUTPUT}"

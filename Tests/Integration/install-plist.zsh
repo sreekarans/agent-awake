@@ -3,6 +3,7 @@
 set -euo pipefail
 
 readonly SCRIPT_DIR="${0:A:h}"
+readonly REPOSITORY_ROOT="${SCRIPT_DIR:h:h}"
 readonly JQ="$(command -v jq || true)"
 readonly TEST_ROOT="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/agent-awake-plist-test.XXXXXX")"
 readonly OUTPUT="${TEST_ROOT}/com.sreekaran.agent-awake.plist"
@@ -14,8 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"${SCRIPT_DIR}/render-launch-agent.zsh" \
-  "${SCRIPT_DIR}/com.sreekaran.agent-awake.plist" \
+"${REPOSITORY_ROOT}/Scripts/render-launch-agent.zsh" \
+  "${REPOSITORY_ROOT}/Resources/LaunchAgents/com.sreekaran.agent-awake.plist" \
   "${OUTPUT}" \
   "${BINARY}" \
   "${LOG_DIRECTORY}"

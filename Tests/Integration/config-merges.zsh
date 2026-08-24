@@ -3,6 +3,8 @@
 set -euo pipefail
 
 readonly SCRIPT_DIR="${0:A:h}"
+readonly REPOSITORY_ROOT="${SCRIPT_DIR:h:h}"
+readonly HOOKS_DIR="${REPOSITORY_ROOT}/Resources/Hooks"
 readonly JQ="$(command -v jq || true)"
 readonly BINARY="/Users/test/Library/Application Support/AgentAwake/agent-awake"
 readonly TEST_ROOT="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/agent-awake-merge-test.XXXXXX")"
@@ -21,8 +23,8 @@ print -r -- '{"description":"keep","hooks":{"Stop":[{"hooks":[{"type":"command",
 print -r -- '{"theme":"dark","hooks":{"Stop":[{"hooks":[{"type":"command","command":"/existing"}]}]}}' > "${TEST_ROOT}/claude.json"
 print -r -- '{"version":1,"custom":"keep","hooks":{"stop":[{"command":"/existing"}]}}' > "${TEST_ROOT}/cursor.json"
 
-"${JQ}" --arg binary "${BINARY}" -f "${SCRIPT_DIR}/merge-codex.jq" "${TEST_ROOT}/codex.json" > "${TEST_ROOT}/codex-1.json"
-"${JQ}" --arg binary "${BINARY}" -f "${SCRIPT_DIR}/merge-codex.jq" "${TEST_ROOT}/codex-1.json" > "${TEST_ROOT}/codex-2.json"
+"${JQ}" --arg binary "${BINARY}" -f "${HOOKS_DIR}/codex.jq" "${TEST_ROOT}/codex.json" > "${TEST_ROOT}/codex-1.json"
+"${JQ}" --arg binary "${BINARY}" -f "${HOOKS_DIR}/codex.jq" "${TEST_ROOT}/codex-1.json" > "${TEST_ROOT}/codex-2.json"
 "${JQ}" --arg binary "${BINARY}" -e '
   .description == "keep"
   and (.hooks.UserPromptSubmit | length) == 1
@@ -40,8 +42,8 @@ print -r -- '{"version":1,"custom":"keep","hooks":{"stop":[{"command":"/existing
   exit 1
 }
 
-"${JQ}" --arg binary "${BINARY}" -f "${SCRIPT_DIR}/merge-claude.jq" "${TEST_ROOT}/claude.json" > "${TEST_ROOT}/claude-1.json"
-"${JQ}" --arg binary "${BINARY}" -f "${SCRIPT_DIR}/merge-claude.jq" "${TEST_ROOT}/claude-1.json" > "${TEST_ROOT}/claude-2.json"
+"${JQ}" --arg binary "${BINARY}" -f "${HOOKS_DIR}/claude.jq" "${TEST_ROOT}/claude.json" > "${TEST_ROOT}/claude-1.json"
+"${JQ}" --arg binary "${BINARY}" -f "${HOOKS_DIR}/claude.jq" "${TEST_ROOT}/claude-1.json" > "${TEST_ROOT}/claude-2.json"
 "${JQ}" --arg binary "${BINARY}" -e '
   .theme == "dark"
   and (.hooks.UserPromptSubmit | length) == 1
@@ -60,8 +62,8 @@ print -r -- '{"version":1,"custom":"keep","hooks":{"stop":[{"command":"/existing
   exit 1
 }
 
-"${JQ}" --arg binary "${BINARY}" -f "${SCRIPT_DIR}/merge-cursor.jq" "${TEST_ROOT}/cursor.json" > "${TEST_ROOT}/cursor-1.json"
-"${JQ}" --arg binary "${BINARY}" -f "${SCRIPT_DIR}/merge-cursor.jq" "${TEST_ROOT}/cursor-1.json" > "${TEST_ROOT}/cursor-2.json"
+"${JQ}" --arg binary "${BINARY}" -f "${HOOKS_DIR}/cursor.jq" "${TEST_ROOT}/cursor.json" > "${TEST_ROOT}/cursor-1.json"
+"${JQ}" --arg binary "${BINARY}" -f "${HOOKS_DIR}/cursor.jq" "${TEST_ROOT}/cursor-1.json" > "${TEST_ROOT}/cursor-2.json"
 "${JQ}" --arg binary "${BINARY}" -e '
   .version == 1
   and .custom == "keep"

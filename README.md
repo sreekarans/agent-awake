@@ -114,6 +114,16 @@ Advanced users can override the defaults with:
 
 Build output is intentionally excluded from Git.
 
+## Repository layout
+
+- `Sources/AgentAwake/` contains the Swift executable source.
+- `Resources/Hooks/` contains the Codex, Cursor, and Claude hook merge filters.
+- `Resources/LaunchAgents/` contains the LaunchAgent template.
+- `Scripts/` contains internal installation helpers.
+- `Tests/Integration/` contains the isolated integration tests.
+
+The root `build.zsh`, `install.zsh`, and `test.zsh` commands remain the stable project interface.
+
 ## Safety properties
 
 - Hook failures fail open and never block the agent protocol.

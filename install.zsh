@@ -49,8 +49,8 @@ backup_if_present "${HOME_DIR}/.cursor/hooks.json"
 /bin/chmod 700 "${SUPPORT_DIR}/agent-awake.new"
 /bin/mv -f "${SUPPORT_DIR}/agent-awake.new" "${LIVE_BINARY}"
 
-"${SCRIPT_DIR}/render-launch-agent.zsh" \
-  "${SCRIPT_DIR}/com.sreekaran.agent-awake.plist" \
+"${SCRIPT_DIR}/Scripts/render-launch-agent.zsh" \
+  "${SCRIPT_DIR}/Resources/LaunchAgents/com.sreekaran.agent-awake.plist" \
   "${LIVE_PLIST}.new" \
   "${LIVE_BINARY}" \
   "${HOME_DIR}/Library/Logs"
@@ -81,9 +81,9 @@ merge_json() {
   fi
 }
 
-merge_json "${HOME_DIR}/.codex/hooks.json" "${SCRIPT_DIR}/merge-codex.jq"
-merge_json "${HOME_DIR}/.claude/settings.json" "${SCRIPT_DIR}/merge-claude.jq"
-merge_json "${HOME_DIR}/.cursor/hooks.json" "${SCRIPT_DIR}/merge-cursor.jq"
+merge_json "${HOME_DIR}/.codex/hooks.json" "${SCRIPT_DIR}/Resources/Hooks/codex.jq"
+merge_json "${HOME_DIR}/.claude/settings.json" "${SCRIPT_DIR}/Resources/Hooks/claude.jq"
+merge_json "${HOME_DIR}/.cursor/hooks.json" "${SCRIPT_DIR}/Resources/Hooks/cursor.jq"
 
 /bin/launchctl bootstrap "gui/${USER_ID}" "${LIVE_PLIST}"
 /bin/launchctl kickstart -k "gui/${USER_ID}/com.sreekaran.agent-awake"
